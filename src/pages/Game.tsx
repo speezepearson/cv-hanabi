@@ -147,15 +147,23 @@ export function Page({ id, viewer }: Props) {
                     </tr>
                 </thead>
                 <tbody>
-                    {states.zip(List(gameQ.actions)).map(([state, action], i) => (
-                        <tr key={i}>
+                    {gameQ.actions.map((action, i) => {
+                        const activePlayer = states.get(i)!.g.players.first()!.name;
+                        return <tr key={i}>
                             <td>
                                 <button onClick={() => { setFrame(i) }}>{i + 1}</button>
                             </td>
-                            <td>{state.g.players.first()?.name}</td>
-                            <td>{JSON.stringify(action.data)}</td>
+                            <td>{activePlayer}</td>
+                            <td>{(() => {
+                                switch (action.data.type) {
+                                    case 'play': return <>play {action.data.posn}</>
+                                    case 'discard': return <>discard {action.data.posn}</>
+                                    case 'hintColor': return <>hint {action.data.targetName}: {renderColor(action.data.color)}</>
+                                    case 'hintRank': return <>hint {action.data.targetName}: {action.data.rank}</>
+                                }
+                            })()}</td>
                         </tr>
-                    )).reverse()}
+                    }).reverse()}
                 </tbody>
             </table>
         </div>
