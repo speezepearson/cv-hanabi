@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { createBrowserRouter, useLoaderData } from "react-router-dom";
+import { createHashRouter, useLoaderData } from "react-router-dom";
 import { Root } from "./Root";
 import * as Home from "./pages/Home";
 import * as Game from "./pages/Game";
@@ -19,7 +19,7 @@ export function getPlayUrl(id: Id<'games'>, viewer: string) {
     return `/g/${id}/${viewer}`;
 }
 
-export const router = createBrowserRouter([
+export const router = createHashRouter([
     {
         path: "/",
         element: <Root />,
