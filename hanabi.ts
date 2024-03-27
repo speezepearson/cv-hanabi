@@ -63,6 +63,12 @@ export const randGame = (playerNames: List<string>): GameState => {
   };
 }
 
+export const isPlaySuccessful = (towers: Map<Color, Rank>, card: Card): boolean => {
+  const towerRank = towers.get(card.color);
+  if (towerRank === undefined) return card.rank === 1;
+  return card.rank === towerRank + 1;
+}
+
 export const step = (g: GameState, action: Action): GameState => {
   switch (action.type) {
     case 'discard':
@@ -92,8 +98,7 @@ const discard = (g: GameState, posn: HandPosn): GameState => {
 const play = (g: GameState, posn: HandPosn): GameState => {
   const playedCard = g.players.first()!.hand.get(posn);
   if (!playedCard) throw new Error('Cannot play a null card');
-  const tower = g.towers.get(playedCard.color);
-  const isSuccess = tower ? incr(tower) === playedCard.rank : playedCard.rank === 1;
+  const isSuccess = isPlaySuccessful(g.towers, playedCard);
   let result = g;
   if (isSuccess) {
     result = { ...result, towers: result.towers.set(playedCard.color, playedCard.rank) };
