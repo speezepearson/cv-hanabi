@@ -18,6 +18,6 @@ export function Page({ id }: Props) {
 
     return <div>
         You are:
-        {gameQ.init.initState.players.sort().map(p => <button onClick={() => navigate(getPlayUrl(id, p.name))}>{p.name}</button>)}
+        {gameQ.init.initState.players.sort().map(p => <button key={p.name} onClick={() => { navigate(getPlayUrl(id, p.name)) }}>{p.name}</button>)}
     </div>
 }
