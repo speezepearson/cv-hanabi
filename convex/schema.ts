@@ -67,7 +67,8 @@ export const vGameState = v.object({
     'red': v.optional(vRank),
     'white': v.optional(vRank),
     'yellow': v.optional(vRank),
-  })
+  }),
+  movesLeft: v.optional(v.number()),
 });
 export type GameState = typeof vGameState.type;
 

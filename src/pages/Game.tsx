@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from "convex/react";
 import { Id } from "../../convex/_generated/dataModel";
 import { api } from "../../convex/_generated/api";
-import { GameState, gameStateFromRaw, step } from "../../hanabi";
+import { GameState, gameStateFromRaw, getGameStatus, step } from "../../hanabi";
 import { List, Map, Set } from "immutable";
 import { useMemo, useState } from "react";
 import { Action, COLORS, Color, HAND_POSNS_4, HAND_POSNS_5, HandPosn, RANKS, Rank } from "../../convex/schema";
@@ -82,12 +82,12 @@ export function Page({ id, viewer }: Props) {
 
     const { g: game, ck: commonKnowledge } = (frame === null ? states.last()! : states.get(frame)!);
     const canonicallyOrderedPlayers = game.players.sortBy(player => states.first()!.g.players.findIndex(p => p.name === player.name));
+    const status = getGameStatus(game);
 
-    const canAct = frame === null && game.players.first()!.name === viewer;
+    const canAct = status.type === 'playing' && frame === null && game.players.first()!.name === viewer;
 
     const canGoBack = (frame === null) ? states.size > 1 : frame > 0;
     const canGoForward = frame !== null && frame < states.size - 1;
-    console.log({ init: states.first() })
 
     const handPosns = game.players.size >= 4 ? HAND_POSNS_4 : HAND_POSNS_5;
 
@@ -104,9 +104,28 @@ export function Page({ id, viewer }: Props) {
             }}> &gt; </button>
             <button onClick={() => { setFrame(null) }}>Live</button>
             <div>
+                {status.type === 'over' ? 'Game ended!' : status.type === 'lost' ? <span style={{ color: 'red' }}>YOU LOOOOSE</span> : ''}
+                <div>Score: {game.towers.valueSeq().reduce((acc, r) => acc + r, 0)}</div>
                 <div>Hints: {game.nHints}</div>
                 <div>Strikes: {game.nStrikes}</div>
                 <div>Towers: {COLORS.map(c => [c, game.towers.get(c)]).filter(([_, r]) => r !== undefined).map(([c, r]) => `${c}: ${r}`).join(', ')}</div>
+                <div>Deck size: {game.deck.size}</div>
+                {game.movesLeft !== undefined && <div>Moves left: {game.movesLeft} ({game.players.get(game.movesLeft - 1)!.name} is last)</div>}
+                <div>
+                    Unseen cards:
+                    <table>
+                        <tbody>
+                            <tr>
+                                <td></td>
+                                {RANKS.map(rank => <td key={rank}>{rank}</td>)}
+                            </tr>
+                            {COLORS.map(color => <tr key={color}>
+                                <td>{renderColor(color)}</td>
+                                {RANKS.map(rank => <td key={rank}>{game.deck.filter(card => card.color === color && card.rank === rank).size}</td>)}
+                            </tr>)}
+                        </tbody>
+                    </table>
+                </div>
             </div>
             <table>
                 <thead>
@@ -118,7 +137,6 @@ export function Page({ id, viewer }: Props) {
                     <tr>
                         {canonicallyOrderedPlayers.map(player => {
                             const isViewer = player.name === viewer;
-                            console.log({ isViewer, viewer, player: player.name })
                             return <td key={player.name}>
                                 {handPosns.map(posn => {
                                     const card = player.hand.get(posn);

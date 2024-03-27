@@ -9,6 +9,7 @@ export type GameState = Readonly<{
   nHints: number,
   nStrikes: number,
   towers: Map<Color, Rank>,
+  movesLeft?: number,
 }>
 
 export const gameStateFromRaw = (raw: RawGameState): GameState => ({
@@ -82,8 +83,9 @@ const discard = (g: GameState, posn: HandPosn): GameState => {
     deck: g.deck.skip(1),
     players: g.players.update(0, player => ({
       ...player!,
-      hand: player!.hand.set(posn, g.deck.first() || null),
+      hand: g.deck.isEmpty() ? player!.hand.remove(posn) : player!.hand.set(posn, g.deck.first()),
     })),
+    movesLeft: g.movesLeft !== undefined ? g.movesLeft - 1 : g.deck.size === 1 ? g.players.size : undefined,
   });
 }
 
@@ -106,8 +108,9 @@ const play = (g: GameState, posn: HandPosn): GameState => {
     deck: g.deck.skip(1),
     players: g.players.update(0, player => ({
       ...player!,
-      hand: player!.hand.set(posn, g.deck.first() || null),
+      hand: g.deck.isEmpty() ? player!.hand.remove(posn) : player!.hand.set(posn, g.deck.first()),
     })),
+    movesLeft: g.movesLeft !== undefined ? g.movesLeft - 1 : g.deck.size === 1 ? g.players.size : undefined,
   })
 }
 
@@ -116,6 +119,7 @@ const hintColor = (g: GameState, targetName: string, color: Color): GameState =>
   return cyclePlayers({
     ...g,
     nHints: g.nHints - 1,
+    movesLeft: g.movesLeft !== undefined ? g.movesLeft - 1 : undefined,
   });
 }
 
@@ -124,5 +128,12 @@ const hintRank = (g: GameState, targetName: string, rank: Rank): GameState => {
   return cyclePlayers({
     ...g,
     nHints: g.nHints - 1,
+    movesLeft: g.movesLeft !== undefined ? g.movesLeft - 1 : undefined,
   });
 }
+
+export const getGameStatus = (g: GameState): { type: 'playing' } | { type: 'over', score: number } | { type: 'lost' } => {
+  if (g.nStrikes >= 4) return { type: 'lost' };
+  if (g.movesLeft === 0) return { type: 'over', score: g.towers.reduce((score, rank) => score + rank, 0) };
+  return { type: 'playing' };
+};
