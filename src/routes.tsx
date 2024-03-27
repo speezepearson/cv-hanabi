@@ -2,7 +2,7 @@ import { ReactNode } from "react";
 import { createBrowserRouter, useLoaderData } from "react-router-dom";
 import { Root } from "./Root";
 import * as Home from "./pages/Home";
-import * as Parameterized from "./pages/Parameterized";
+import * as Parameterized from "./pages/Game";
 import { Id } from "../convex/_generated/dataModel";
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -10,8 +10,8 @@ function WrapElement<T>({ element }: { element: (props: T) => ReactNode }): Reac
     return element(useLoaderData() as T);
 }
 
-export function getTaskUrl(id: Id<'tasks'>) {
-    return `/task/${id}`;
+export function getGameUrl(id: Id<'games'>, viewer: string) {
+    return `/g/${id}/${viewer}`;
 }
 
 export const router = createBrowserRouter([
@@ -24,8 +24,8 @@ export const router = createBrowserRouter([
                 element: <Home.Page />,
             },
             {
-                path: getTaskUrl(':id' as Id<'tasks'>),
-                loader: ({ params }): Parameterized.Props => ({ id: params.id! as Id<'tasks'> }), // eslint-disable-line @typescript-eslint/no-non-null-assertion
+                path: getGameUrl(':id' as Id<'games'>, ':viewer'),
+                loader: ({ params }): Parameterized.Props => ({ id: params.id! as Id<'games'>, viewer: params.viewer! }), // eslint-disable-line @typescript-eslint/no-non-null-assertion
                 element: <WrapElement element={(props: Parameterized.Props) => <Parameterized.Page {...props} />} />,
             },
         ],

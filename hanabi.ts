@@ -1,174 +1,128 @@
-import { List, Map, Record } from 'immutable'
+import { List, Map } from 'immutable'
+import { Action, COLORS, Card, Color, HAND_POSNS_4, HAND_POSNS_5, HandPosn, Rank, GameState as RawGameState } from './convex/schema'
 
-enum Color {
-  Blue = 'Blue',
-  Green = 'Green',
-  Red = 'Red',
-  White = 'White',
-  Yellow = 'Yellow',
-}
+export type Hand = Map<HandPosn, Readonly<Card>>;
 
-enum Number {
-  One = 1,
-  Two = 2,
-  Three = 3,
-  Four = 4,
-  Five = 5,
-}
+export type GameState = Readonly<{
+  players: List<Readonly<{ name: string, hand: Map<HandPosn, Readonly<Card>> }>>,
+  deck: List<Readonly<{ color: Color, rank: Rank }>>,
+  nHints: number,
+  nStrikes: number,
+  towers: Map<Color, Rank>,
+}>
 
-const multiplicities: Map<Number, number> = Map({
-  [Number.One]: 3,
-  [Number.Two]: 2,
-  [Number.Three]: 2,
-  [Number.Four]: 2,
-  [Number.Five]: 1,
+export const gameStateFromRaw = (raw: RawGameState): GameState => ({
+  players: List(raw.players).map(p => ({ name: p.name, hand: Map(p.hand as Record<HandPosn, { color: Color, rank: Rank }>) })),
+  deck: List(raw.deck),
+  nHints: raw.nHints,
+  nStrikes: raw.nStrikes,
+  towers: Map(raw.towers as Record<Color, Rank>),
+});
+export const gameStateToRaw = (g: GameState): RawGameState => ({
+  players: g.players.map(p => ({ name: p.name, hand: p.hand.toObject() })).toArray(),
+  deck: g.deck.toArray(),
+  nHints: g.nHints,
+  nStrikes: g.nStrikes,
+  towers: g.towers.toObject(),
 });
 
-export const incr = (x: Number): Number | null => {
+const multiplicities: List<Rank> = List([1, 1, 1, 2, 2, 3, 3, 4, 4, 5]);
+
+export const incr = (x: Rank): Rank | null => {
   switch (x) {
-    case Number.One: return Number.Two;
-    case Number.Two: return Number.Three;
-    case Number.Three: return Number.Four;
-    case Number.Four: return Number.Five;
-    case Number.Five: return null;
+    case 1: return 2;
+    case 2: return 3;
+    case 3: return 4;
+    case 4: return 5;
+    case 5: return null;
+  }
+  throw new Error('Invalid rank');
+}
+
+const cyclePlayers = (g: GameState): GameState => {
+  return { ...g, players: g.players.skip(1).push(g.players.first()) };
+}
+
+export const randGame = (playerNames: List<string>): GameState => {
+  const handPosns = playerNames.size >= 4 ? HAND_POSNS_4 : HAND_POSNS_5;
+  let deck: List<Card> = List(
+    COLORS.flatMap(color => multiplicities.map(rank => ({ color, rank })))
+  ).sortBy(() => Math.random());
+  let players: GameState['players'] = List();
+  for (const name of playerNames) {
+    players = players.push({ name, hand: handPosns.zip(deck).reduce((hand, [posn, card]) => hand.set(posn, card), Map<HandPosn, Card>()) });
+    deck = deck.skip(handPosns.size);
+  }
+  return {
+    deck,
+    players,
+    nHints: 8,
+    nStrikes: 0,
+    towers: Map(),
+  };
+}
+
+export const step = (g: GameState, action: Action): GameState => {
+  switch (action.type) {
+    case 'discard':
+      return discard(g, action.posn);
+    case 'play':
+      return play(g, action.posn);
+    case 'hintColor':
+      return hintColor(g, action.targetName, action.color);
+    case 'hintRank':
+      return hintRank(g, action.targetName, action.rank);
   }
 }
 
-export type Card = {
-  color: Color;
-  number: Number;
+const discard = (g: GameState, posn: HandPosn): GameState => {
+  return cyclePlayers({
+    ...g,
+    nHints: Math.min(8, g.nHints + 1),
+    deck: g.deck.skip(1),
+    players: g.players.update(0, player => ({
+      ...player!,
+      hand: player!.hand.set(posn, g.deck.first() || null),
+    })),
+  });
 }
 
-interface IPlayer {
-  name: string
-  hand: List<Card | null>;
-}
-
-const RPlayer = Record<IPlayer>({
-  name: '',
-  hand: List()
-});
-
-class Player extends RPlayer {
-  constructor(props: IPlayer) {
-    super(props);
-  }
-}
-
-
-// Define the game state structure
-interface IGameState {
-  deck: List<Card>;
-  players: List<Player>;
-  nHints: number;
-  strikeTokens: number;
-  towers: Map<Color, Number>;
-}
-
-const RGameState = Record<IGameState>({
-  deck: List(),
-  players: List(),
-  nHints: 8,
-  strikeTokens: 0,
-  towers: Map(),
-});
-
-class GameState extends RGameState {
-  constructor(props: IGameState) {
-    super(props);
-  }
-
-  private cyclePlayers(): GameState {
-    return this.update('players', players => players.push(players.first()));
-  }
-
-  static rand(playerNames: List<string>): GameState {
-    let deck: List<Card> = List([
-      ...Object.keys(Color).flatMap(cName => Object.keys(Number).flatMap(nName => Array(multiplicities.get(Number[nName])!).fill({ color: Color[cName], number: Number[nName] }))),
-    ]).sortBy(() => Math.random());
-    let players = List<Player>();
-    for (const name of playerNames) {
-      players = players.push(new Player({ name, hand: deck.take(5) }));
-      deck = deck.skip(5);
+const play = (g: GameState, posn: HandPosn): GameState => {
+  const playedCard = g.players.first()!.hand.get(posn);
+  if (!playedCard) throw new Error('Cannot play a null card');
+  const tower = g.towers.get(playedCard.color);
+  const isSuccess = tower ? incr(tower) === playedCard.rank : playedCard.rank === 1;
+  let result = g;
+  if (isSuccess) {
+    result = { ...result, towers: result.towers.set(playedCard.color, playedCard.rank) };
+    if (playedCard.rank === 5) {
+      result = { ...result, nHints: Math.min(8, result.nHints + 1) };
     }
-    return new GameState({
-      deck,
-      players,
-      nHints: 8,
-      strikeTokens: 0,
-      towers: Map(),
-    });
+  } else {
+    result = { ...result, nStrikes: result.nStrikes + 1 };
   }
-
-  step(action: Action): GameState {
-    switch (action.type) {
-      case 'discard':
-        return this.discard(action.index);
-      case 'play':
-        return this.play(action.index);
-      case 'hint':
-        return this.hint(action);
-    }
-  }
-
-  discard(index: number): GameState {
-    return this
-      .set('nHints', Math.min(8, this.nHints + 1))
-      .set('deck', this.deck.skip(1))
-      .set('players', this.players.update(0, player => player!.update('hand', hand => hand.set(index, this.deck.first() || null))))
-      .cyclePlayers();
-  }
-
-  play(index: number): GameState {
-    const playedCard = this.players.first()!.hand.get(index);
-    if (!playedCard) throw new Error('Cannot play a null card');
-    const tower = this.towers.get(playedCard.color);
-    const isSuccess = tower ? incr(tower) === playedCard.number : playedCard.number === Number.One;
-    let result = this;
-    if (isSuccess) {
-      result = result.set('towers', result.towers.set(playedCard.color, playedCard.number));
-      if (playedCard.number === Number.Five) {
-        result = result.set('nHints', Math.min(8, result.nHints + 1));
-      }
-    } else {
-      result = result.set('strikeTokens', result.strikeTokens + 1);
-    }
-    return result
-      .set('deck', this.deck.skip(1))
-      .set('players', this.players.update(0, player => player!.update('hand', hand => hand.set(index, this.deck.first() || null))))
-      .cyclePlayers();
-  }
-
-  hint(action: Action & { type: 'hint' }): GameState {
-    if (this.nHints < 1) throw new Error('No hints left');
-    return this
-      .set('nHints', this.nHints - 1)
-      .cyclePlayers();
-  }
+  return cyclePlayers({
+    ...result,
+    deck: g.deck.skip(1),
+    players: g.players.update(0, player => ({
+      ...player!,
+      hand: player!.hand.set(posn, g.deck.first() || null),
+    })),
+  })
 }
 
-export type Action =
-  | { type: 'discard', index: number }
-  | { type: 'play', index: number }
-  | { type: 'hint', player: Player, hintType: 'color', color: Color }
-  | { type: 'hint', player: Player, hintType: 'number', number: Number }
-
-export type IHistory = {
-  start: GameState;
-  actions: List<Action>;
+const hintColor = (g: GameState, targetName: string, color: Color): GameState => {
+  if (g.nHints < 1) throw new Error('No hints left');
+  return cyclePlayers({
+    ...g,
+    nHints: g.nHints - 1,
+  });
 }
 
-const RHistory = Record<IHistory>({
-  start: GameState.rand(List(['Alice', 'Bob'])),
-  actions: List(),
-});
-
-export class History extends RHistory {
-  constructor(props: IHistory) {
-    super(props);
-  }
-
-  step(action: Action): History {
-    return this.update('actions', actions => actions.push(action));
-  }
+const hintRank = (g: GameState, targetName: string, rank: Rank): GameState => {
+  if (g.nHints < 1) throw new Error('No hints left');
+  return cyclePlayers({
+    ...g,
+    nHints: g.nHints - 1,
+  });
 }

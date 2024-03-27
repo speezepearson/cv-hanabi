@@ -1,46 +1,38 @@
-import { Link } from "react-router-dom";
-import { getTaskUrl } from "../routes";
-import { useMutation, useQuery } from "convex/react";
+import { useNavigate } from "react-router-dom";
+import { getGameUrl } from "../routes";
+import { useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useState } from "react";
-import * as Parameterized from "./Parameterized";
+import { List } from "immutable";
 
-function CreateTaskForm() {
-    const createTask = useMutation(api.tasks.create);
-    const [text, setText] = useState("");
+function CreateGameForm() {
+    const navigate = useNavigate();
+    const createGame = useMutation(api.games.create);
+    const [playersField, setPlayersField] = useState("");
+    const [viewerField, setViewerField] = useState("");
     const [working, setWorking] = useState(false);
 
     return <form onSubmit={(e) => {
         e.preventDefault();
         if (working) return;
+        const players = List(playersField.split(",").map(s => s.trim()));
+        if (players.size < 2) throw new Error("Need at least 2 players");
+        if (!players.contains(viewerField)) throw new Error("Viewer must be a player");
         setWorking(true);
         (async () => {
-            await createTask({ text });
+            const newGameId = await createGame({ players: playersField.split(",").map(s => s.trim()) });
             setWorking(false)
-            setText("");
+            setPlayersField("");
+            navigate(getGameUrl(newGameId, viewerField));
         })().catch(console.error);
     }}>
-        <input disabled={working} value={text} onChange={(e) => { setText(e.target.value) }} />
+        <input disabled={working} value={playersField} placeholder="Alice, Bob, Charlie" onChange={(e) => { setPlayersField(e.target.value) }} />
+        <input disabled={working} value={viewerField} placeholder="Your name" onChange={(e) => { setViewerField(e.target.value) }} />
         <button disabled={working} type="submit">Create</button>
     </form>
 
 }
 
 export function Page() {
-    const tasks = useQuery(api.tasks.list);
-    const setCompleted = useMutation(api.tasks.setCompleted);
-
-    if (tasks === undefined) {
-        return <div>Loading...</div>
-    }
-
-    return <div>
-        <ul>
-            {tasks.map((task) => <li key={task._id}>
-                <input type="checkbox" checked={task.isCompleted} onChange={(e) => { setCompleted({ id: task._id, isCompleted: e.target.checked }).catch(console.error) }} />
-                <Link to={getTaskUrl(task._id)} state={{ task } as Parameterized.LinkState}>{task.text}</Link>
-            </li>)}
-            <li><CreateTaskForm /></li>
-        </ul>
-    </div>
+    return <CreateGameForm />
 }
