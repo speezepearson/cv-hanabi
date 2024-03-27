@@ -125,28 +125,38 @@ export function Page({ id, viewer }: Props) {
                     </table>
                 </div>
             </div>
-            <table>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                     <tr>
-                        {canonicallyOrderedPlayers.map(player => (<th key={player.name}>{player.name}</th>))}
+                        {canonicallyOrderedPlayers.map(player => (<th key={player.name} style={{ textAlign: 'center', width: `${100 / game.players.size}%` }}>{player.name}</th>))}
                     </tr>
                 </thead>
                 <tbody>
                     <tr>
                         {canonicallyOrderedPlayers.map(player => {
                             const isViewer = player.name === viewer;
-                            return <td key={player.name}>
-                                {handPosns.map(posn => {
-                                    const card = player.hand.get(posn);
-                                    const ck = commonKnowledge.get(player.name)!.get(posn)!;
-                                    return <div key={posn}>
-                                        {card === undefined ? '_' : isViewer ? '?' : <button disabled={!canAct || game.nHints === 0} onClick={() => { act({ game: id, action: { type: "hintColor", targetName: player.name, color: card.color } }).catch(console.error) }}>{renderColor(card.color)}</button>}
-                                        {card === undefined ? '_' : isViewer ? '?' : <button disabled={!canAct || game.nHints === 0} onClick={() => { act({ game: id, action: { type: "hintRank", targetName: player.name, rank: card.rank } }).catch(console.error) }}>{card.rank}</button>}
-                                        ({ck.possibleColors.sort().map(renderColor).join('')} {ck.possibleRanks.sort().join('')})
-                                        {card === undefined ? '' : isViewer && <button disabled={!canAct} onClick={() => { act({ game: id, action: { type: "play", posn } }).catch(console.error) }}>Play</button>}
-                                        {card === undefined ? '' : isViewer && <button disabled={!canAct} onClick={() => { act({ game: id, action: { type: "discard", posn } }).catch(console.error) }}>Discard</button>}
-                                    </div>
-                                })}
+                            return <td key={player.name} style={{ border: '1px solid black' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'start' }}>
+                                    <div style={{ margin: 'auto' }}>
+                                        {handPosns.map(posn => {
+                                            const card = player.hand.get(posn);
+                                            const ck = commonKnowledge.get(player.name)!.get(posn)!;
+                                            return <div key={posn} style={{ margin: 'auto', display: 'block' }}>
+                                                {isViewer
+                                                    ? <>
+                                                        {card === undefined ? <button disabled>_</button> : <button disabled={!canAct} onClick={() => { act({ game: id, action: { type: "play", posn } }).catch(console.error) }}>Play</button>}
+                                                        {card === undefined ? <button disabled>_</button> : <button disabled={!canAct} onClick={() => { act({ game: id, action: { type: "discard", posn } }).catch(console.error) }}>Discard</button>}
+                                                        {' '} ({ck.possibleColors.sort().map(renderColor).join('')} {ck.possibleRanks.sort().join('')})
+                                                    </>
+                                                    : <>
+                                                        {card === undefined ? <button disabled>_</button> : <button disabled={!canAct || game.nHints === 0} style={{ width: '2em' }} onClick={() => { act({ game: id, action: { type: "hintColor", targetName: player.name, color: card.color } }).catch(console.error) }}>{renderColor(card.color)}</button>}
+                                                        {card === undefined ? <button disabled>_</button> : <button disabled={!canAct || game.nHints === 0} style={{ width: '2em' }} onClick={() => { act({ game: id, action: { type: "hintRank", targetName: player.name, rank: card.rank } }).catch(console.error) }}>{card.rank}</button>}
+                                                        {' '} ({ck.possibleColors.sort().map(renderColor).join('')} {ck.possibleRanks.sort().join('')})
+                                                    </>
+
+                                                }
+                                            </div>
+                                        })}</div></div>
                             </td>
                         })}
                     </tr>
