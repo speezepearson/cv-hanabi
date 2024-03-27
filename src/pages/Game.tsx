@@ -2,9 +2,9 @@ import { useMutation, useQuery } from "convex/react";
 import { Id } from "../../convex/_generated/dataModel";
 import { api } from "../../convex/_generated/api";
 import { GameState, gameStateFromRaw, step } from "../../hanabi";
-import { List } from "immutable";
+import { List, Map, Set } from "immutable";
 import { useMemo, useState } from "react";
-import { COLORS, HAND_POSNS_4, HAND_POSNS_5 } from "../../convex/schema";
+import { Action, COLORS, Color, HAND_POSNS_4, HAND_POSNS_5, HandPosn, RANKS, Rank } from "../../convex/schema";
 
 export interface Props {
     id: Id<'games'>;
@@ -21,17 +21,56 @@ const renderColor = (color: string) => {
     }
 }
 
+type CommonKnowledge = Map<string, Map<HandPosn, { possibleColors: Set<Color>, possibleRanks: Set<Rank> }>>;
+const totalIgnorance = (playerNames: List<string>): CommonKnowledge => {
+    const handPosns = playerNames.size >= 4 ? HAND_POSNS_4 : HAND_POSNS_5; // TODO: deduplicate this logic
+    return Map(playerNames.map(name => [name, Map(handPosns.map(posn => [posn, { possibleColors: Set(COLORS), possibleRanks: Set(RANKS) }]))]));
+}
+const stepCommonKnowledge = (g: GameState, ck: CommonKnowledge, action: Action): CommonKnowledge => {
+    switch (action.type) {
+        case 'discard':
+            return ck.update(
+                g.players.first()!.name,
+                h => h!.set(action.posn, { possibleColors: Set(COLORS), possibleRanks: Set(RANKS) }),
+            );
+        case 'play':
+            return ck.update(
+                g.players.first()!.name,
+                h => h!.set(action.posn, { possibleColors: Set(COLORS), possibleRanks: Set(RANKS) }),
+            );
+        case 'hintColor':
+            const matchingPosnsC = g.players.find(p => p.name === action.targetName)!.hand.filter((card) => card.color === action.color).keySeq();
+            return ck.update(
+                action.targetName,
+                h => h!.map((cardCK, posn) => ({
+                    ...cardCK,
+                    possibleColors: matchingPosnsC.contains(posn) ? Set([action.color]) : cardCK.possibleColors.remove(action.color),
+                })),
+            );
+        case 'hintRank':
+            const matchingPosnsR = g.players.find(p => p.name === action.targetName)!.hand.filter((card) => card.rank === action.rank).keySeq();
+            return ck.update(
+                action.targetName,
+                h => h!.map((cardCK, posn) => ({
+                    ...cardCK,
+                    possibleRanks: matchingPosnsR.contains(posn) ? Set([action.rank]) : cardCK.possibleRanks.remove(action.rank),
+                })),
+            );
+    }
+}
+
 export function Page({ id, viewer }: Props) {
     const gameQ = useQuery(api.games.get, { id });
     const act = useMutation(api.games.act);
 
     const [frame, setFrame] = useState<number | null>(null);
 
-    const states = useMemo<List<GameState>>(() => {
+    const states = useMemo<List<{ g: GameState, ck: CommonKnowledge }>>(() => {
         if (gameQ === undefined) return List();
-        let states = List.of(gameStateFromRaw(gameQ.init.initState));
+        let states = List.of({ g: gameStateFromRaw(gameQ.init.initState), ck: totalIgnorance(List(gameQ.init.initState.players).map(p => p.name)) });
         for (const action of gameQ.actions) {
-            states = states.push(step(states.last(), action.data));
+            const { g, ck } = states.last()!;
+            states = states.push({ g: step(g, action.data), ck: stepCommonKnowledge(g, ck, action.data) });
         }
         return states;
     }, [gameQ]);
@@ -41,8 +80,8 @@ export function Page({ id, viewer }: Props) {
         return <div>Loading...</div>
     }
 
-    const game = frame === null ? states.last()! : states.get(frame)!;
-    const canonicallyOrderedPlayers = game.players.sortBy(player => states.first()!.players.findIndex(p => p.name === player.name));
+    const { g: game, ck: commonKnowledge } = (frame === null ? states.last()! : states.get(frame)!);
+    const canonicallyOrderedPlayers = game.players.sortBy(player => states.first()!.g.players.findIndex(p => p.name === player.name));
 
     const canAct = frame === null && game.players.first()!.name === viewer;
 
@@ -83,9 +122,11 @@ export function Page({ id, viewer }: Props) {
                             return <td key={player.name}>
                                 {handPosns.map(posn => {
                                     const card = player.hand.get(posn);
+                                    const ck = commonKnowledge.get(player.name)?.get(posn)!;
                                     return <div key={posn}>
                                         {card === undefined ? '_' : isViewer ? '?' : <button disabled={!canAct || game.nHints === 0} onClick={() => { act({ game: id, action: { type: "hintColor", targetName: player.name, color: card.color } }).catch(console.error) }}>{renderColor(card.color)}</button>}
                                         {card === undefined ? '_' : isViewer ? '?' : <button disabled={!canAct || game.nHints === 0} onClick={() => { act({ game: id, action: { type: "hintRank", targetName: player.name, rank: card.rank } }).catch(console.error) }}>{card.rank}</button>}
+                                        ({ck.possibleColors.sort().map(renderColor).join('')} {ck.possibleRanks.sort().join('')})
                                         {card === undefined ? '' : isViewer && <button disabled={!canAct} onClick={() => { act({ game: id, action: { type: "play", posn } }).catch(console.error) }}>Play</button>}
                                         {card === undefined ? '' : isViewer && <button disabled={!canAct} onClick={() => { act({ game: id, action: { type: "discard", posn } }).catch(console.error) }}>Discard</button>}
                                     </div>
@@ -111,7 +152,7 @@ export function Page({ id, viewer }: Props) {
                             <td>
                                 <button onClick={() => { setFrame(i) }}>{i + 1}</button>
                             </td>
-                            <td>{state.players.first()?.name}</td>
+                            <td>{state.g.players.first()?.name}</td>
                             <td>{JSON.stringify(action.data)}</td>
                         </tr>
                     )).reverse()}
