@@ -39,21 +39,19 @@ const stepCommonKnowledge = (g: GameState, ck: CommonKnowledge, action: Action):
                 h => h!.set(action.posn, { possibleColors: Set(COLORS), possibleRanks: Set(RANKS) }),
             );
         case 'hintColor':
-            const matchingPosnsC = g.players.find(p => p.name === action.targetName)!.hand.filter((card) => card.color === action.color).keySeq();
             return ck.update(
                 action.targetName,
                 h => h!.map((cardCK, posn) => ({
                     ...cardCK,
-                    possibleColors: matchingPosnsC.contains(posn) ? Set([action.color]) : cardCK.possibleColors.remove(action.color),
+                    possibleColors: g.players.find(p => p.name === action.targetName)!.hand.get(posn)?.color === action.color ? Set([action.color]) : cardCK.possibleColors.remove(action.color),
                 })),
             );
         case 'hintRank':
-            const matchingPosnsR = g.players.find(p => p.name === action.targetName)!.hand.filter((card) => card.rank === action.rank).keySeq();
             return ck.update(
                 action.targetName,
                 h => h!.map((cardCK, posn) => ({
                     ...cardCK,
-                    possibleRanks: matchingPosnsR.contains(posn) ? Set([action.rank]) : cardCK.possibleRanks.remove(action.rank),
+                    possibleRanks: g.players.find(p => p.name === action.targetName)!.hand.get(posn)?.rank === action.rank ? Set([action.rank]) : cardCK.possibleRanks.remove(action.rank),
                 })),
             );
     }
@@ -108,7 +106,7 @@ export function Page({ id, viewer }: Props) {
                 <div>Score: {game.towers.valueSeq().reduce((acc, r) => acc + r, 0)}</div>
                 <div>Hints: {game.nHints}</div>
                 <div>Strikes: {game.nStrikes}</div>
-                <div>Towers: {COLORS.map(c => [c, game.towers.get(c)]).filter(([_, r]) => r !== undefined).map(([c, r]) => `${c}: ${r}`).join(', ')}</div>
+                <div>Towers: {COLORS.map(c => [c, game.towers.get(c)]).filter(([, r]) => r !== undefined).map(([c, r]) => `${c}: ${r}`).join(', ')}</div>
                 <div>Deck size: {game.deck.size}</div>
                 {game.movesLeft !== undefined && <div>Moves left: {game.movesLeft} ({game.players.get(game.movesLeft - 1)!.name} is last)</div>}
                 <div>
@@ -140,7 +138,7 @@ export function Page({ id, viewer }: Props) {
                             return <td key={player.name}>
                                 {handPosns.map(posn => {
                                     const card = player.hand.get(posn);
-                                    const ck = commonKnowledge.get(player.name)?.get(posn)!;
+                                    const ck = commonKnowledge.get(player.name)!.get(posn)!;
                                     return <div key={posn}>
                                         {card === undefined ? '_' : isViewer ? '?' : <button disabled={!canAct || game.nHints === 0} onClick={() => { act({ game: id, action: { type: "hintColor", targetName: player.name, color: card.color } }).catch(console.error) }}>{renderColor(card.color)}</button>}
                                         {card === undefined ? '_' : isViewer ? '?' : <button disabled={!canAct || game.nHints === 0} onClick={() => { act({ game: id, action: { type: "hintRank", targetName: player.name, rank: card.rank } }).catch(console.error) }}>{card.rank}</button>}

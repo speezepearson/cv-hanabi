@@ -70,9 +70,9 @@ export const step = (g: GameState, action: Action): GameState => {
     case 'play':
       return play(g, action.posn);
     case 'hintColor':
-      return hintColor(g, action.targetName, action.color);
+      return hint(g);
     case 'hintRank':
-      return hintRank(g, action.targetName, action.rank);
+      return hint(g);
   }
 }
 
@@ -114,16 +114,7 @@ const play = (g: GameState, posn: HandPosn): GameState => {
   })
 }
 
-const hintColor = (g: GameState, targetName: string, color: Color): GameState => {
-  if (g.nHints < 1) throw new Error('No hints left');
-  return cyclePlayers({
-    ...g,
-    nHints: g.nHints - 1,
-    movesLeft: g.movesLeft !== undefined ? g.movesLeft - 1 : undefined,
-  });
-}
-
-const hintRank = (g: GameState, targetName: string, rank: Rank): GameState => {
+const hint = (g: GameState): GameState => {
   if (g.nHints < 1) throw new Error('No hints left');
   return cyclePlayers({
     ...g,
