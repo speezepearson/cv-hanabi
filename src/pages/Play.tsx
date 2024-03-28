@@ -80,8 +80,8 @@ function OwnHandView({ posns, presentPosns, commonKnowledge, actions }: {
     presentPosns: Set<HandPosn>,
     commonKnowledge: HandCommonKnowledge,
     actions: null | {
-        play: (posn: HandPosn) => Promise<any>,
-        discard: (posn: HandPosn) => Promise<any>,
+        play: (posn: HandPosn) => Promise<unknown>,
+        discard: (posn: HandPosn) => Promise<unknown>,
     },
 }) {
     return (
@@ -103,8 +103,8 @@ function OtherHandView({ posns, hand, commonKnowledge, hint }: {
     hand: Map<HandPosn, Card>,
     commonKnowledge: HandCommonKnowledge,
     hint: null | {
-        color: (color: Color) => Promise<any>,
-        rank: (rank: Rank) => Promise<any>,
+        color: (color: Color) => Promise<unknown>,
+        rank: (rank: Rank) => Promise<unknown>,
     },
 }) {
     return (
