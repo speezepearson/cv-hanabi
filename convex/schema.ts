@@ -83,4 +83,13 @@ export default defineSchema({
   })
     .index("by_game", ["game"])
   ,
+
+  notes: defineTable({
+    game: v.id("games"),
+    player: v.string(),
+    frame: v.number(),
+    text: v.string(),
+  })
+    .index("by_game_player_frame", ["game", "player", "frame"])
+  ,
 });

@@ -30,3 +30,30 @@ export const act = mutation({
     return await ctx.db.insert("actions", { game: args.game, data: args.action });
   },
 });
+
+export const getNotes = query({
+  args: {
+    game: v.id("games"),
+    viewer: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.query("notes").withIndex('by_game_player_frame', q => q.eq('game', args.game).eq('player', args.viewer)).collect();
+  },
+});
+
+export const setNotes = mutation({
+  args: {
+    game: v.id("games"),
+    viewer: v.string(),
+    frame: v.number(),
+    text: v.string()
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db.query("notes").withIndex('by_game_player_frame', q => q.eq('game', args.game).eq('player', args.viewer).eq('frame', args.frame)).unique();
+    if (existing !== null) {
+      await ctx.db.patch(existing._id, { text: args.text });
+    } else {
+      await ctx.db.insert("notes", { game: args.game, player: args.viewer, frame: args.frame, text: args.text });
+    }
+  },
+});

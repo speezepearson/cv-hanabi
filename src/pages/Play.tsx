@@ -5,6 +5,7 @@ import { GameState, gameStateFromRaw, getGameStatus, isPlaySuccessful, step } fr
 import { List, Map, Set } from "immutable";
 import { useEffect, useMemo, useState } from "react";
 import { Action, COLORS, Card, Color, HAND_POSNS_4, HAND_POSNS_5, HandPosn, RANKS, Rank } from "../../convex/schema";
+import { ReqStatus } from "../common";
 
 export interface Props {
     id: Id<'games'>;
@@ -183,8 +184,33 @@ function FreezeFrameControls({ frame, back, fwd, unfreeze, currentFrame }: { fra
     </div>;
 }
 
+function PrivateNotesForm({ curSavedText, setNote }: { curSavedText: string, setNote: (text: string) => Promise<any> }) {
+    const [text, setText] = useState(curSavedText);
+    useEffect(() => { setText(curSavedText) }, [curSavedText]);
+    const [status, setStatus] = useState<ReqStatus>({ type: 'idle' });
+
+    return <form onSubmit={e => {
+        e.preventDefault();
+        setStatus({ type: 'working' });
+        (async () => {
+            try { await setNote(text); setStatus({ type: 'idle' }) }
+            catch (e: unknown) { setStatus({ type: 'error', message: e instanceof Object ? e.toString() : typeof e === 'string' ? e : `weird-typed error: ${e}` }) }
+        })().catch(console.error);
+    }}>
+        <input disabled={status.type === 'working'} type="text" value={text} onChange={e => { setText(e.target.value) }} style={{ minWidth: '20em', }} />
+        <button disabled={status.type === 'working'} type="submit">Save</button>
+        {status.type === 'error' && <span style={{ color: 'red' }}>{status.message}</span>}
+    </form>
+}
+
 export function Page({ id, viewer }: Props) {
     const gameQ = useQuery(api.games.get, { id });
+    const notesQ = useQuery(api.games.getNotes, { game: id, viewer });
+    const notesByFrame = useMemo<Map<number, string>>(() => {
+        if (notesQ === undefined) return Map();
+        return Map(notesQ.map(n => [n.frame, n.text]));
+    }, [notesQ]);
+    const setNote = useMutation(api.games.setNotes);
 
     const states = useMemo<List<{ g: GameState, ck: CommonKnowledge }>>(() => {
         if (gameQ === undefined) return List();
@@ -241,6 +267,7 @@ export function Page({ id, viewer }: Props) {
                         <th>Player</th>
                         <th>Action</th>
                         <th>After</th>
+                        <th>Notes</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -280,6 +307,9 @@ export function Page({ id, viewer }: Props) {
                             })()}</td>
                             <td style={{ textAlign: 'center' }}>
                                 <button onClick={() => { setFrame(i === states.size - 2 ? null : i + 1) }}>{i === states.size - 2 ? '(now)' : i + 1 + 1}</button>
+                            </td>
+                            <td>
+                                <PrivateNotesForm curSavedText={notesByFrame.get(i, '')} setNote={(text) => setNote({ game: id, viewer, frame: i, text })} />
                             </td>
                         </tr>
                     }).reverse()}
