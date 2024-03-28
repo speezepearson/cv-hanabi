@@ -156,7 +156,7 @@ function GameView({ id, game, commonKnowledge, viewer, canonicalPlayerOrder, fro
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                     <tr>
-                        {canonicallyOrderedPlayers.map(player => (<th key={player.name} style={{ textAlign: 'center', width: `${100 / game.players.size}%` }}>{player.name}</th>))}
+                        {canonicallyOrderedPlayers.map(player => (<th key={player.name} style={{ textAlign: 'center', width: `${100 / game.players.size}%`, backgroundColor: player.name === game.players.first()!.name ? 'lightgray' : 'inherit' }}>{player.name}</th>))}
                     </tr>
                 </thead>
                 <tbody>
