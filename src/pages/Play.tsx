@@ -150,9 +150,10 @@ function GameView({ id, game, commonKnowledge, viewer, canonicalPlayerOrder, fro
                 })}</div>
                 <div>Cards left: {game.deck.size}</div>
                 {game.movesLeft !== undefined && <div>Moves left: {game.movesLeft} ({game.players.get(game.movesLeft - 1)!.name} is last)</div>}
-                <div>
-                    Unseen cards: <UnseenCardsTable unseen={game.deck.concat(game.players.find(p => p.name === viewer)!.hand.valueSeq())} />
-                </div>
+                <details>
+                    <summary>Count unseen cards</summary>
+                    <UnseenCardsTable unseen={game.deck.concat(game.players.find(p => p.name === viewer)!.hand.valueSeq())} />
+                </details>
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap' }}>
                 {canonicallyOrderedPlayers.map(player => {
