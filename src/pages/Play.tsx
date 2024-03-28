@@ -3,7 +3,7 @@ import { Id } from "../../convex/_generated/dataModel";
 import { api } from "../../convex/_generated/api";
 import { GameState, gameStateFromRaw, getGameStatus, isPlaySuccessful, step } from "../../hanabi";
 import { List, Map, Set } from "immutable";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Action, COLORS, Card, Color, HAND_POSNS_4, HAND_POSNS_5, HandPosn, RANKS, Rank } from "../../convex/schema";
 import { ReqStatus } from "../common";
 
@@ -122,8 +122,7 @@ function OtherHandView({ posns, hand, commonKnowledge, hint }: {
     )
 }
 
-function GameView({ id, game, commonKnowledge, viewer, canonicalPlayerOrder, frozen }: { id: Id<'games'>, game: GameState, commonKnowledge: CommonKnowledge, viewer: string, canonicalPlayerOrder: List<string>, frozen: boolean }) {
-    const act = useMutation(api.games.act);
+function GameView({ act, game, commonKnowledge, viewer, canonicalPlayerOrder, frozen }: { act: (action: Action) => Promise<unknown>, game: GameState, commonKnowledge: CommonKnowledge, viewer: string, canonicalPlayerOrder: List<string>, frozen: boolean }) {
 
     const status = getGameStatus(game);
 
@@ -164,8 +163,26 @@ function GameView({ id, game, commonKnowledge, viewer, canonicalPlayerOrder, fro
                         </div>
                         <div style={{ margin: 'auto' }}>
                             {isViewer
-                                ? <OwnHandView posns={handPosns} commonKnowledge={commonKnowledge.get(player.name)!} presentPosns={handPosns.filter(posn => player.hand.get(posn)).toSet()} actions={canAct ? { play: (posn) => act({ game: id, action: { type: "play", posn } }), discard: (posn) => act({ game: id, action: { type: "discard", posn } }) } : null} />
-                                : <OtherHandView posns={handPosns} commonKnowledge={commonKnowledge.get(player.name)!} hand={player.hand} hint={canAct ? { color: (color) => act({ game: id, action: { type: "hintColor", targetName: player.name, color } }), rank: (rank) => act({ game: id, action: { type: "hintRank", targetName: player.name, rank } }) } : null} />
+                                ? <OwnHandView
+                                    posns={handPosns}
+                                    commonKnowledge={commonKnowledge.get(player.name)!}
+                                    presentPosns={handPosns.filter(posn => player.hand.get(posn)).toSet()}
+                                    actions={canAct
+                                        ? {
+                                            play: (posn) => act({ type: "play", posn }),
+                                            discard: (posn) => act({ type: "discard", posn })
+                                        }
+                                        : null} />
+                                : <OtherHandView
+                                    posns={handPosns}
+                                    commonKnowledge={commonKnowledge.get(player.name)!}
+                                    hand={player.hand}
+                                    hint={canAct
+                                        ? {
+                                            color: (color) => act({ type: "hintColor", targetName: player.name, color }),
+                                            rank: (rank) => act({ type: "hintRank", targetName: player.name, rank }),
+                                        }
+                                        : null} />
                             }
                         </div>
                     </div>
@@ -185,7 +202,7 @@ function FreezeFrameControls({ frame, back, fwd, unfreeze, currentFrame }: { fra
     </div>;
 }
 
-function PrivateNotesForm({ curSavedText, setNote }: { curSavedText: string, setNote: (text: string) => Promise<any> }) {
+function PrivateNotesForm({ curSavedText, setNote }: { curSavedText: string, setNote: (text: string) => Promise<unknown> }) {
     const [text, setText] = useState(curSavedText);
     useEffect(() => { setText(curSavedText) }, [curSavedText]);
     const [status, setStatus] = useState<ReqStatus>({ type: 'idle' });
@@ -195,7 +212,7 @@ function PrivateNotesForm({ curSavedText, setNote }: { curSavedText: string, set
         setStatus({ type: 'working' });
         (async () => {
             try { await setNote(text); setStatus({ type: 'idle' }) }
-            catch (e: unknown) { setStatus({ type: 'error', message: e instanceof Object ? e.toString() : typeof e === 'string' ? e : `weird-typed error: ${e}` }) }
+            catch (e) { setStatus({ type: 'error', message: e instanceof Error ? e.message : `weird-typed error: ${e}` }) }
         })().catch(console.error);
     }}>
         <input disabled={status.type === 'working'} type="text" value={text} onChange={e => { setText(e.target.value) }} style={{ minWidth: '20em', }} />
@@ -206,6 +223,7 @@ function PrivateNotesForm({ curSavedText, setNote }: { curSavedText: string, set
 
 export function Page({ id, viewer }: Props) {
     const gameQ = useQuery(api.games.get, { id });
+    const act = useMutation(api.games.act);
     const notesQ = useQuery(api.games.getNotes, { game: id, viewer });
     const notesByFrame = useMemo<Map<number, string>>(() => {
         if (notesQ === undefined) return Map();
@@ -243,8 +261,23 @@ export function Page({ id, viewer }: Props) {
             }
         }
         window.addEventListener('keydown', f);
-        return () => { console.log('unbinding'); window.removeEventListener('keydown', f) };
+        return () => { window.removeEventListener('keydown', f) };
     }, [frameBack, frameForward]);
+
+    const undo = useMutation(api.games.undo);
+    const [undoableAction, setUndoableAction] = useState<{ id: Id<'actions'>, forbiddenceCallbackId: number } | null>(null);
+    const forbidUndo = useCallback(() => {
+        if (undoableAction) {
+            useCallback
+            clearTimeout(undoableAction.forbiddenceCallbackId);
+        }
+        setUndoableAction(null);
+    }, [undoableAction, setUndoableAction]);
+    useEffect(() => {
+        if (undoableAction && gameQ && List(gameQ.actions).last()?._id !== undoableAction.id) {
+            forbidUndo();
+        }
+    }, [gameQ, forbidUndo, undoableAction])
 
     if (gameQ === undefined) {
         return <div>Loading...</div>
@@ -257,7 +290,22 @@ export function Page({ id, viewer }: Props) {
             <div style={{ border: '1px solid black', padding: '1em' }}>
                 <FreezeFrameControls frame={frame} back={frameBack} fwd={frameForward} unfreeze={() => { setFrame(null) }} currentFrame={states.size - 1} />
                 {frame !== null && states.last()!.g.players.first()!.name === viewer && <h3 style={{ color: 'red' }}> In real time, it's your turn! <button onClick={() => { setFrame(null) }}>Unfreeze</button> to play! </h3>}
-                <GameView id={id} game={game} commonKnowledge={commonKnowledge} canonicalPlayerOrder={states.first()!.g.players.map(p => p.name)} frozen={frame !== null} viewer={viewer} />
+                <GameView
+                    act={async (action) => {
+                        const actionId = await act({ game: id, action });
+                        const canUndoMillis = 1000 * 10;
+                        const callbackId = setTimeout(forbidUndo, canUndoMillis);
+                        setUndoableAction({ id: actionId, forbiddenceCallbackId: callbackId });
+                    }}
+                    game={game}
+                    commonKnowledge={commonKnowledge}
+                    canonicalPlayerOrder={states.first()!.g.players.map(p => p.name)} frozen={frame !== null}
+                    viewer={viewer} />
+                {undoableAction && <button style={{ fontSize: '2rem' }} onClick={() => {
+                    if (!undoableAction) return;
+                    setUndoableAction(null);
+                    undo({ game: id, id: undoableAction.id }).catch(console.error);
+                }}>Undo</button>}
             </div>
 
             History:

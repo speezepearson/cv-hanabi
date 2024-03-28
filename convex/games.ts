@@ -57,3 +57,16 @@ export const setNotes = mutation({
     }
   },
 });
+
+export const undo = mutation({
+  args: {
+    game: v.id("games"),
+    id: v.id('actions'),
+  },
+  handler: async (ctx, args) => {
+    const lastAction = await ctx.db.query("actions").withIndex('by_game', q => q.eq('game', args.game)).order('desc').first();
+    if (lastAction === null) throw new Error("No actions to undo");
+    if (lastAction._id !== args.id) throw new Error("Last action does not match");
+    await ctx.db.delete(lastAction._id);
+  },
+});
