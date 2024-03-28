@@ -153,30 +153,22 @@ function GameView({ id, game, commonKnowledge, viewer, canonicalPlayerOrder, fro
                     Unseen cards: <UnseenCardsTable unseen={game.deck.concat(game.players.find(p => p.name === viewer)!.hand.valueSeq())} />
                 </div>
             </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                    <tr>
-                        {canonicallyOrderedPlayers.map(player => (<th key={player.name} style={{ textAlign: 'center', width: `${100 / game.players.size}%`, backgroundColor: player.name === game.players.first()!.name ? 'lightgray' : 'inherit' }}>{player.name}</th>))}
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        {canonicallyOrderedPlayers.map((player, i) => {
-                            const isViewer = player.name === viewer;
-                            return <td key={player.name} style={{ borderLeft: i === 0 ? '' : '1px solid black' }}>
-                                <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'start' }}>
-                                    <div style={{ margin: 'auto' }}>
-                                        {isViewer
-                                            ? <OwnHandView posns={handPosns} commonKnowledge={commonKnowledge.get(player.name)!} presentPosns={handPosns.filter(posn => player.hand.get(posn)).toSet()} actions={canAct ? { play: (posn) => act({ game: id, action: { type: "play", posn } }), discard: (posn) => act({ game: id, action: { type: "discard", posn } }) } : null} />
-                                            : <OtherHandView posns={handPosns} commonKnowledge={commonKnowledge.get(player.name)!} hand={player.hand} hint={canAct ? { color: (color) => act({ game: id, action: { type: "hintColor", targetName: player.name, color } }), rank: (rank) => act({ game: id, action: { type: "hintRank", targetName: player.name, rank } }) } : null} />
-                                        }
-                                    </div>
-                                </div>
-                            </td>
-                        })}
-                    </tr>
-                </tbody>
-            </table>
+            <div style={{ display: 'flex', flexWrap: 'wrap' }}>
+                {canonicallyOrderedPlayers.map(player => {
+                    const isViewer = player.name === viewer;
+                    return <div key={player.name} style={{ margin: '0.2em', padding: '0.3em', border: '1px solid lightgray' }}>
+                        <div style={{ textAlign: 'center', backgroundColor: player.name === game.players.first()!.name ? 'lightgray' : 'inherit' }}>
+                            {player.name}
+                        </div>
+                        <div style={{ margin: 'auto' }}>
+                            {isViewer
+                                ? <OwnHandView posns={handPosns} commonKnowledge={commonKnowledge.get(player.name)!} presentPosns={handPosns.filter(posn => player.hand.get(posn)).toSet()} actions={canAct ? { play: (posn) => act({ game: id, action: { type: "play", posn } }), discard: (posn) => act({ game: id, action: { type: "discard", posn } }) } : null} />
+                                : <OtherHandView posns={handPosns} commonKnowledge={commonKnowledge.get(player.name)!} hand={player.hand} hint={canAct ? { color: (color) => act({ game: id, action: { type: "hintColor", targetName: player.name, color } }), rank: (rank) => act({ game: id, action: { type: "hintRank", targetName: player.name, rank } }) } : null} />
+                            }
+                        </div>
+                    </div>
+                })}
+            </div>
         </div>
     )
 }
