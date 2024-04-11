@@ -209,10 +209,13 @@ function GameView({ act, focus, game, commonKnowledge, viewer, canonicalPlayerOr
                             cellStyle={(color, rank) => {
                                 const numBurned = discardPile.get(color)?.get(rank) ?? 0;
                                 const numRemaining = multiplicities.count(r => r === rank) - numBurned;
-                                if ((discardPile.get(color)?.get(rank) ?? 0) === 0) {
-                                    return { visibility: 'hidden' }
+                                if (rank < game.towers.get(color, 0)) {
+                                    return { backgroundColor: 'lightblue', color: 'transparent' }
                                 }
-                                if (rank <= game.towers.get(color, 0)) {
+                                if (rank === game.towers.get(color, 0)) {
+                                    return { backgroundColor: 'lightblue', borderRight: '0.2em solid blue', color: 'transparent' }
+                                }
+                                if ((discardPile.get(color)?.get(rank) ?? 0) === 0) {
                                     return { visibility: 'hidden' }
                                 }
                                 if (numRemaining === 1) {
