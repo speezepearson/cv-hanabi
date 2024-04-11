@@ -130,7 +130,15 @@ function OtherHandView({ posns, focus, hand, commonKnowledge, hint }: {
     )
 }
 
-function GameView({ act, focus, game, commonKnowledge, viewer, canonicalPlayerOrder, frozen }: { act: (action: Action) => Promise<unknown>, focus: (p: { posn: HandPosn, player: string } | null) => void, game: GameState, commonKnowledge: CommonKnowledge, viewer: string, canonicalPlayerOrder: List<string>, frozen: boolean }) {
+function GameView({ act, focus, game, commonKnowledge, viewer, canonicalPlayerOrder, frozen }: {
+    act: (action: Action) => Promise<unknown>,
+    focus: (p: { posn: HandPosn, player: string } | null) => void,
+    game: GameState,
+    commonKnowledge: CommonKnowledge,
+    viewer: string,
+    canonicalPlayerOrder: List<string>,
+    frozen: boolean,
+}) {
 
     const status = getGameStatus(game);
 
@@ -173,7 +181,7 @@ function GameView({ act, focus, game, commonKnowledge, viewer, canonicalPlayerOr
                             {isViewer
                                 ? <OwnHandView
                                     posns={handPosns}
-                                    focus={posn => focus(posn ? { posn, player: player.name } : null)}
+                                    focus={posn => { focus(posn ? { posn, player: player.name } : null) }}
                                     commonKnowledge={commonKnowledge.get(player.name)!}
                                     presentPosns={handPosns.filter(posn => player.hand.get(posn)).toSet()}
                                     actions={canAct
@@ -184,7 +192,7 @@ function GameView({ act, focus, game, commonKnowledge, viewer, canonicalPlayerOr
                                         : null} />
                                 : <OtherHandView
                                     posns={handPosns}
-                                    focus={posn => focus(posn ? { posn, player: player.name } : null)}
+                                    focus={posn => { focus(posn ? { posn, player: player.name } : null) }}
                                     commonKnowledge={commonKnowledge.get(player.name)!}
                                     hand={player.hand}
                                     hint={canAct
@@ -295,9 +303,9 @@ export function Page({ id, viewer }: Props) {
         if (gameQ === undefined) return Set();
         let res = Set<number>();
         for (let i = (frame ?? states.size - 1) - 1; i >= 0; i--) {
-            let origState = states.get(i)!;
-            let action = gameQ.actions[i];
-            let handThen = origState.g.players.find(p => p.name === focusedCard.player)!.hand;
+            const origState = states.get(i)!;
+            const action = gameQ.actions[i];
+            const handThen = origState.g.players.find(p => p.name === focusedCard.player)!.hand;
             switch (action.data.type) {
                 case 'discard':
                 case 'play':
@@ -319,7 +327,7 @@ export function Page({ id, viewer }: Props) {
             }
         }
         return res;
-    }, [focusedCard, gameQ, frame, states, viewer]);
+    }, [focusedCard, gameQ, frame, states]);
 
     if (gameQ === undefined) {
         return <div>Loading...</div>
@@ -345,7 +353,6 @@ export function Page({ id, viewer }: Props) {
                     canonicalPlayerOrder={states.first()!.g.players.map(p => p.name)} frozen={frame !== null}
                     viewer={viewer} />
                 {undoableAction && <button style={{ fontSize: '2rem' }} onClick={() => {
-                    if (!undoableAction) return;
                     setUndoableAction(null);
                     undo({ game: id, id: undoableAction.id }).catch(console.error);
                 }}>Undo</button>}
@@ -371,7 +378,7 @@ export function Page({ id, viewer }: Props) {
                                 <button onClick={() => { setFrame(i) }}>{i + 1}</button>
                             </td>
                             <td>{activePlayer}</td>
-                            <td style={actionsHintingAtFocusedCard?.contains(i) ? { backgroundColor: 'pink' } : {}}>{(() => {
+                            <td style={actionsHintingAtFocusedCard.contains(i) ? { backgroundColor: 'pink' } : {}}>{(() => {
                                 switch (action.data.type) {
                                     case 'play':
                                         const playedCardP = prevState.players.first()!.hand.get(action.data.posn)!;
