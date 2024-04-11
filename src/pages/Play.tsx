@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from "convex/react";
 import { Id } from "../../convex/_generated/dataModel";
 import { api } from "../../convex/_generated/api";
-import { GameState, gameStateFromRaw, getGameStatus, isPlaySuccessful, step } from "../../hanabi";
+import { GameState, gameStateFromRaw, getGameStatus, isPlaySuccessful, step, unshuffledDeck } from "../../hanabi";
 import { List, Map, Set } from "immutable";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Action, COLORS, Card, Color, HAND_POSNS_4, HAND_POSNS_5, HandPosn, RANKS, Rank } from "../../convex/schema";
@@ -59,8 +59,7 @@ const stepCommonKnowledge = (g: GameState, ck: CommonKnowledge, action: Action):
     }
 }
 
-function UnseenCardsTable({ unseen }: { unseen: List<Card> }) {
-    const counts = unseen.groupBy(card => card.color + card.rank).map(cards => cards.size);
+function CardCountingTable({ counts }: { counts: Map<Color, Map<Rank, number>> }) {
     return <table>
         <tbody>
             <tr>
@@ -69,7 +68,7 @@ function UnseenCardsTable({ unseen }: { unseen: List<Card> }) {
             </tr>
             {COLORS.map(color => <tr key={color}>
                 <td>{renderColor(color)}</td>
-                {RANKS.map(rank => <td key={rank}>{counts.get(color + rank, 0)}</td>)}
+                {RANKS.map(rank => <td key={rank}>{counts.get(color)?.get(rank) ?? 0}</td>)}
             </tr>)}
         </tbody>
     </table>
@@ -147,6 +146,37 @@ function GameView({ act, focus, game, commonKnowledge, viewer, canonicalPlayerOr
 
     const handPosns = game.players.size >= 4 ? HAND_POSNS_4 : HAND_POSNS_5;
 
+    const unseenCards = useMemo(() => {
+        let res = Map<Color, Map<Rank, number>>();
+        const incr = (c: Card) => { res = res.update(c.color, Map(), r => r.update(c.rank, 0, x => x + 1)) };
+        for (const card of game.deck) {
+            incr(card);
+        }
+        for (const card of game.players.find(p => p.name === viewer)!.hand.valueSeq()) {
+            incr(card);
+        }
+        return res;
+    }, [game, viewer])
+
+    const discardPile = useMemo(() => {
+        let unaccountedFor = unshuffledDeck.reduce((acc, c) => acc.update(c.color, Map(), r => r.update(c.rank, 0, x => x + 1)), Map<Color, Map<Rank, number>>());
+        const decr = (c: Card) => { unaccountedFor = unaccountedFor.update(c.color, Map(), r => r.update(c.rank, 0, x => x - 1)) };
+        for (const card of game.deck) {
+            decr(card);
+        }
+        for (const player of game.players) {
+            for (const card of player.hand.valueSeq()) {
+                decr(card);
+            }
+        }
+        for (const [color, towerRank] of game.towers.entries()) {
+            for (let i = 1 as Rank; i <= towerRank; i++) {
+                decr({ color, rank: i });
+            }
+        }
+        return unaccountedFor;
+    }, [game]);
+
     return (
         <div>
             <div>
@@ -165,10 +195,16 @@ function GameView({ act, focus, game, commonKnowledge, viewer, canonicalPlayerOr
                 })}</div>
                 <div>Cards left: {game.deck.size}</div>
                 {game.movesLeft !== undefined && <div>Moves left: {game.movesLeft} ({game.players.get(game.movesLeft - 1)!.name} is last)</div>}
-                <details>
-                    <summary>Count unseen cards</summary>
-                    <UnseenCardsTable unseen={game.deck.concat(game.players.find(p => p.name === viewer)!.hand.valueSeq())} />
-                </details>
+                <div style={{ display: 'flex', flexWrap: 'wrap' }}>
+                    <div style={{ padding: '0.5em', margin: '0 0.5em', border: '1px solid black' }}>
+                        Not yet seen:
+                        <CardCountingTable counts={unseenCards} />
+                    </div>
+                    <div style={{ padding: '0.5em', margin: '0 0.5em', border: '1px solid black' }}>
+                        Burned:
+                        <CardCountingTable counts={discardPile} />
+                    </div>
+                </div>
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap' }}>
                 {canonicallyOrderedPlayers.map(player => {

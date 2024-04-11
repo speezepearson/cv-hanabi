@@ -28,6 +28,9 @@ export const gameStateToRaw = (g: GameState): RawGameState => ({
 });
 
 const multiplicities: List<Rank> = List([1, 1, 1, 2, 2, 3, 3, 4, 4, 5]);
+export const unshuffledDeck: List<Card> = List(
+  COLORS.flatMap(color => multiplicities.map(rank => ({ color, rank })))
+);
 
 export const incr = (x: Rank): Rank | null => {
   switch (x) {
@@ -46,9 +49,7 @@ const cyclePlayers = (g: GameState): GameState => {
 
 export const randGame = (playerNames: List<string>): GameState => {
   const handPosns = playerNames.size >= 4 ? HAND_POSNS_4 : HAND_POSNS_5;
-  let deck: List<Card> = List(
-    COLORS.flatMap(color => multiplicities.map(rank => ({ color, rank })))
-  ).sortBy(() => Math.random());
+  let deck: List<Card> = unshuffledDeck.sortBy(() => Math.random());
   let players: GameState['players'] = List();
   for (const name of playerNames) {
     players = players.push({ name, hand: handPosns.zip(deck).reduce((hand, [posn, card]) => hand.set(posn, card), Map<HandPosn, Card>()) });
