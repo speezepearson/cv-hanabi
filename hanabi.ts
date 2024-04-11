@@ -27,7 +27,7 @@ export const gameStateToRaw = (g: GameState): RawGameState => ({
   towers: g.towers.toObject(),
 });
 
-const multiplicities: List<Rank> = List([1, 1, 1, 2, 2, 3, 3, 4, 4, 5]);
+export const multiplicities: List<Rank> = List([1, 1, 1, 2, 2, 3, 3, 4, 4, 5]);
 export const unshuffledDeck: List<Card> = List(
   COLORS.flatMap(color => multiplicities.map(rank => ({ color, rank })))
 );

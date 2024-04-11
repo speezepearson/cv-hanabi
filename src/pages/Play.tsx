@@ -1,9 +1,9 @@
 import { useMutation, useQuery } from "convex/react";
 import { Id } from "../../convex/_generated/dataModel";
 import { api } from "../../convex/_generated/api";
-import { GameState, gameStateFromRaw, getGameStatus, isPlaySuccessful, step, unshuffledDeck } from "../../hanabi";
+import { GameState, gameStateFromRaw, getGameStatus, isPlaySuccessful, multiplicities, step, unshuffledDeck } from "../../hanabi";
 import { List, Map, Set } from "immutable";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { CSSProperties, useCallback, useEffect, useMemo, useState } from "react";
 import { Action, COLORS, Card, Color, HAND_POSNS_4, HAND_POSNS_5, HandPosn, RANKS, Rank } from "../../convex/schema";
 import { ReqStatus } from "../common";
 
@@ -59,7 +59,10 @@ const stepCommonKnowledge = (g: GameState, ck: CommonKnowledge, action: Action):
     }
 }
 
-function CardCountingTable({ counts }: { counts: Map<Color, Map<Rank, number>> }) {
+function CardCountingTable({ counts, cellStyle }: {
+    counts: Map<Color, Map<Rank, number>>,
+    cellStyle?: (color: Color, rank: Rank) => CSSProperties,
+}) {
     return <table>
         <tbody>
             <tr>
@@ -68,7 +71,7 @@ function CardCountingTable({ counts }: { counts: Map<Color, Map<Rank, number>> }
             </tr>
             {COLORS.map(color => <tr key={color}>
                 <td>{renderColor(color)}</td>
-                {RANKS.map(rank => <td key={rank}>{counts.get(color)?.get(rank) ?? 0}</td>)}
+                {RANKS.map(rank => <td key={rank} style={cellStyle?.(color, rank) ?? {}}>{counts.get(color)?.get(rank) ?? 0}</td>)}
             </tr>)}
         </tbody>
     </table>
@@ -202,7 +205,25 @@ function GameView({ act, focus, game, commonKnowledge, viewer, canonicalPlayerOr
                     </div>
                     <div style={{ padding: '0.5em', margin: '0 0.5em', border: '1px solid black' }}>
                         Burned:
-                        <CardCountingTable counts={discardPile} />
+                        <CardCountingTable counts={discardPile}
+                            cellStyle={(color, rank) => {
+                                const numBurned = discardPile.get(color)?.get(rank) ?? 0;
+                                const numRemaining = multiplicities.count(r => r === rank) - numBurned;
+                                if ((discardPile.get(color)?.get(rank) ?? 0) === 0) {
+                                    return { visibility: 'hidden' }
+                                }
+                                if (rank <= game.towers.get(color, 0)) {
+                                    return { visibility: 'hidden' }
+                                }
+                                if (numRemaining === 1) {
+                                    return { border: '1px solid red' };
+                                }
+                                if (numRemaining === 0) {
+                                    return { backgroundColor: 'red', color: 'transparent' };
+                                }
+                                return {};
+                            }}
+                        />
                     </div>
                 </div>
             </div>
