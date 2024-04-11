@@ -102,8 +102,9 @@ function OwnHandView({ posns, focus, presentPosns, commonKnowledge, actions }: {
     )
 }
 
-function OtherHandView({ posns, hand, commonKnowledge, hint }: {
+function OtherHandView({ posns, focus, hand, commonKnowledge, hint }: {
     posns: List<HandPosn>,
+    focus: (p: HandPosn | null) => void,
     hand: Map<HandPosn, Card>,
     commonKnowledge: HandCommonKnowledge,
     hint: null | {
@@ -116,7 +117,10 @@ function OtherHandView({ posns, hand, commonKnowledge, hint }: {
             {posns.map((posn) => {
                 const card = hand.get(posn);
                 const ck = commonKnowledge.get(posn)!;
-                return <div key={posn} style={{ margin: 'auto', display: 'block' }}>
+                return <div key={posn} style={{ margin: 'auto', display: 'block' }}
+                    onMouseEnter={() => { focus(posn) }}
+                    onMouseLeave={() => { focus(null) }}
+                >
                     {card === undefined ? <button disabled>_</button> : <button disabled={!hint} style={{ width: '2em' }} onClick={() => { hint!.color(card.color).catch(console.error) }}>{renderColor(card.color)}</button>}
                     {card === undefined ? <button disabled>_</button> : <button disabled={!hint} style={{ width: '2em' }} onClick={() => { hint!.rank(card.rank).catch(console.error) }}>{card.rank}</button>}
                     {' '} ({ck.possibleColors.sort().map(renderColor).join('')} {ck.possibleRanks.sort().join('')})
@@ -126,7 +130,7 @@ function OtherHandView({ posns, hand, commonKnowledge, hint }: {
     )
 }
 
-function GameView({ act, focus, game, commonKnowledge, viewer, canonicalPlayerOrder, frozen }: { act: (action: Action) => Promise<unknown>, focus: (p: HandPosn | null) => void, game: GameState, commonKnowledge: CommonKnowledge, viewer: string, canonicalPlayerOrder: List<string>, frozen: boolean }) {
+function GameView({ act, focus, game, commonKnowledge, viewer, canonicalPlayerOrder, frozen }: { act: (action: Action) => Promise<unknown>, focus: (p: { posn: HandPosn, player: string } | null) => void, game: GameState, commonKnowledge: CommonKnowledge, viewer: string, canonicalPlayerOrder: List<string>, frozen: boolean }) {
 
     const status = getGameStatus(game);
 
@@ -169,7 +173,7 @@ function GameView({ act, focus, game, commonKnowledge, viewer, canonicalPlayerOr
                             {isViewer
                                 ? <OwnHandView
                                     posns={handPosns}
-                                    focus={focus}
+                                    focus={posn => focus(posn ? { posn, player: player.name } : null)}
                                     commonKnowledge={commonKnowledge.get(player.name)!}
                                     presentPosns={handPosns.filter(posn => player.hand.get(posn)).toSet()}
                                     actions={canAct
@@ -180,6 +184,7 @@ function GameView({ act, focus, game, commonKnowledge, viewer, canonicalPlayerOr
                                         : null} />
                                 : <OtherHandView
                                     posns={handPosns}
+                                    focus={posn => focus(posn ? { posn, player: player.name } : null)}
                                     commonKnowledge={commonKnowledge.get(player.name)!}
                                     hand={player.hand}
                                     hint={canAct
@@ -284,7 +289,7 @@ export function Page({ id, viewer }: Props) {
         }
     }, [gameQ, forbidUndo, undoableAction])
 
-    const [focusedCard, setFocusedCard] = useState<HandPosn | null>(null);
+    const [focusedCard, setFocusedCard] = useState<{ posn: HandPosn, player: string } | null>(null);
     const actionsHintingAtFocusedCard: Set<number> = useMemo(() => {
         if (focusedCard === null) return Set();
         if (gameQ === undefined) return Set();
@@ -292,21 +297,21 @@ export function Page({ id, viewer }: Props) {
         for (let i = (frame ?? states.size - 1) - 1; i >= 0; i--) {
             let origState = states.get(i)!;
             let action = gameQ.actions[i];
-            let handThen = origState.g.players.find(p => p.name === viewer)!.hand;
+            let handThen = origState.g.players.find(p => p.name === focusedCard.player)!.hand;
             switch (action.data.type) {
                 case 'discard':
                 case 'play':
-                    if (origState.g.players.first()!.name === viewer && action.data.posn === focusedCard) {
+                    if (origState.g.players.first()!.name === focusedCard.player && action.data.posn === focusedCard.posn) {
                         return res;
                     }
                     break;
                 case 'hintColor':
-                    if (action.data.targetName === viewer && action.data.color === handThen.get(focusedCard)?.color) {
+                    if (action.data.targetName === focusedCard.player && action.data.color === handThen.get(focusedCard.posn)?.color) {
                         res = res.add(i);
                     }
                     break;
                 case 'hintRank':
-                    if (action.data.targetName === viewer && action.data.rank === handThen.get(focusedCard)?.rank) {
+                    if (action.data.targetName === focusedCard.player && action.data.rank === handThen.get(focusedCard.posn)?.rank) {
                         res = res.add(i);
                     }
                     break;
