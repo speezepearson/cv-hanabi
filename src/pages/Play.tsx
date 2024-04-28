@@ -194,7 +194,7 @@ function GameView({ act, focus, game, commonKnowledge, viewer, canonicalPlayerOr
                 <div>Towers: {COLORS.map(c => {
                     const r = game.towers.get(c);
                     if (!r) return '';
-                    return <><span key={c}>{renderColor(c)}{r}</span> {" "}</>;
+                    return <span key={c}>{renderColor(c)}{r} {" "}</span>;
                 })}</div>
                 <div>Cards left: {game.deck.size}</div>
                 {game.movesLeft !== undefined && <div>Moves left: {game.movesLeft} ({game.players.get(game.movesLeft - 1)!.name} is last)</div>}
