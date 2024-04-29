@@ -402,10 +402,14 @@ export function Page({ id, viewer }: Props) {
                 {frame !== null && states.last()!.g.players.first()!.name === viewer && <h3 style={{ color: 'red' }}> In real time, it's your turn! <button onClick={() => { setFrame(null) }}>Unfreeze</button> to play! </h3>}
                 <GameView
                     act={async (action) => {
-                        const actionId = await act({ game: id, action });
+                        const resp = await act({ game: id, action });
+                        if ('error' in resp) {
+                            alert(`Error: ${resp.error}`);
+                            return;
+                        }
                         const canUndoMillis = 1000 * 10;
                         const callbackId = setTimeout(forbidUndo, canUndoMillis);
-                        setUndoableAction({ id: actionId, forbiddenceCallbackId: callbackId });
+                        setUndoableAction({ id: resp.actionId, forbiddenceCallbackId: callbackId });
                     }}
                     focus={setFocusedCard}
                     game={game}

@@ -1,8 +1,10 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { gameStateToRaw, randGame } from "../hanabi";
+import { gameStateFromRaw, gameStateToRaw, randGame, step } from "../hanabi";
+import { errToString } from "../common";
 import { List } from "immutable";
 import { vAction } from "./schema";
+import { Id } from "./_generated/dataModel";
 
 export const create = mutation({
   args: { players: v.array(v.string()) },
@@ -26,8 +28,18 @@ export const get = query({
 
 export const act = mutation({
   args: { game: v.id("games"), action: vAction },
-  handler: async (ctx, args) => {
-    return await ctx.db.insert("actions", { game: args.game, data: args.action });
+  handler: async (ctx, args): Promise<{ actionId: Id<'actions'> } | { error: string }> => {
+    const initGame = await ctx.db.get(args.game);
+    if (initGame === null) throw new Error("Game not found");
+    const actions = await ctx.db.query("actions").withIndex('by_game', q => q.eq('game', args.game)).collect();
+    const game = actions.reduce((g, action) => step(g, action.data), gameStateFromRaw(initGame.initState));
+    try {
+      step(game, args.action);
+    } catch (e) {
+      console.log({ game: gameStateToRaw(game), action: args.action });
+      return { error: errToString(e) };
+    }
+    return { actionId: await ctx.db.insert("actions", { game: args.game, data: args.action }) };
   },
 });
 
